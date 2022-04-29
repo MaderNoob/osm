@@ -1,7 +1,9 @@
+mod html;
 mod osm;
+mod tmp_dir;
+mod ui;
 
 use anyhow::Context;
-use thiserror::Error;
 
 fn main() {
     if let Err(error) = run() {
@@ -10,8 +12,7 @@ fn main() {
 }
 
 fn run() -> anyhow::Result<()> {
-    println!("{:?}", osm::get_domain_list().unwrap());
-    let mail_addr = "a@esiix.com".parse().unwrap();
-    println!("{:?}", osm::get_messages(&mail_addr));
+    tmp_dir::init_tmp_dir().context("failed to initialize tmp dir")?;
+    ui::run()?;
     Ok(())
 }

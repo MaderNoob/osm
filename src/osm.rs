@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use strum_macros::Display;
 use thiserror::Error;
 
@@ -15,7 +15,7 @@ pub fn get_domain_list() -> Result<Vec<String>, OsmError> {
     create_req(OsmAction::GetDomainList).send()?.json()
 }
 
-pub fn get_messages(mail_addr: &MailAddr) -> Result<Vec<Message>, OsmError> {
+pub fn get_messages(mail_addr: &MailAddr) -> Result<Vec<MessageInfo>, OsmError> {
     create_req(OsmAction::GetMessages)
         .with_param("login", &mail_addr.login)
         .with_param("domain", &mail_addr.domain)
@@ -23,9 +23,27 @@ pub fn get_messages(mail_addr: &MailAddr) -> Result<Vec<Message>, OsmError> {
         .json()
 }
 
+pub fn read_message(mail_addr: &MailAddr, message_id: MessageId) -> Result<Message, OsmError> {
+    create_req(OsmAction::ReadMessage)
+        .with_param("login", &mail_addr.login)
+        .with_param("domain", &mail_addr.domain)
+        .with_param("id", &message_id.to_string())
+        .send()?
+        .json()
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(transparent)]
+pub struct MessageId(u64);
+impl std::fmt::Display for MessageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-pub struct Message {
-    pub id: u64,
+pub struct MessageInfo {
+    pub id: MessageId,
 
     #[serde(with = "serde_with::rust::display_fromstr")]
     pub from: MailAddr,
@@ -34,6 +52,29 @@ pub struct Message {
 
     #[serde(with = "osm_date_format")]
     pub date: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+pub struct Message {
+    #[serde(with = "serde_with::rust::display_fromstr")]
+    pub from: MailAddr,
+
+    pub subject: String,
+
+    #[serde(with = "osm_date_format")]
+    pub date: DateTime<Utc>,
+
+    pub attachments: Vec<AttachmentInfo>,
+
+    pub body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentInfo {
+    pub filename: String,
+    pub content_type: String,
+    pub size: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -85,18 +126,16 @@ pub enum ParseMailAddrError {
 enum OsmAction {
     GetDomainList,
     GetMessages,
+    ReadMessage,
 }
 
 mod osm_date_format {
-    use chrono::{DateTime, Utc, TimeZone};
-    use serde::{self, Deserialize, Serializer, Deserializer};
+    use chrono::{DateTime, TimeZone, Utc};
+    use serde::{self, Deserialize, Deserializer, Serializer};
 
     const FORMAT: &'static str = "%Y-%m-%d %H:%M:%S";
 
-    pub fn serialize<S>(
-        date: &DateTime<Utc>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -104,13 +143,12 @@ mod osm_date_format {
         serializer.serialize_str(&s)
     }
 
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<DateTime<Utc>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Utc.datetime_from_str(&s, FORMAT).map_err(serde::de::Error::custom)
+        Utc.datetime_from_str(&s, FORMAT)
+            .map_err(serde::de::Error::custom)
     }
 }
