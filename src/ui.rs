@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::Context;
 use copypasta_ext::{prelude::*, x11_bin::ClipboardContext};
 use inquire::error::InquireError;

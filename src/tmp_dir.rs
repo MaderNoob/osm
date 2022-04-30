@@ -1,8 +1,7 @@
 use std::{
     collections::hash_map::DefaultHasher,
-    fs::{create_dir, metadata, remove_dir_all, File},
+    fs::{create_dir, metadata, remove_dir_all},
     hash::{Hash, Hasher},
-    path::{Path, PathBuf},
 };
 
 use anyhow::Context;
